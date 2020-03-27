@@ -1,0 +1,14 @@
+private_key: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+public_key:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+address:     "0x0000000000000000000000000000000000000000"
+
+faucet:
+  discord_bot_token:          "YOUR_BOT_TOKEN"
+  discord_listening_channel:  ["general", "tap"]
+  amount_to_send:             99999
+  fee:                        50
+  request_coldown_sec:        10800
+
+rpc:
+  ip:   "127.0.0.1"
+  port: "9090"
