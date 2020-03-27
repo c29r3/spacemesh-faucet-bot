@@ -1,0 +1,12 @@
+[Unit]
+Description="Discord faucet bot for Spacemesh"
+
+[Service]
+User=spacemesh
+WorkingDirectory=/home/spacemesh/spacemesh-faucet-bot
+ExecStart=/usr/bin/python3 discord_faucet_bot.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
