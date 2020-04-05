@@ -61,9 +61,11 @@ async def on_message(message):
     # Show node synchronization settings
     if message.content.startswith('$faucet_status') and message.channel.name in LISTENING_CHANNELS:
         try:
+            faucet_balance = spacemesh_api.get_balance(ADDRESS)
             status = spacemesh_api.get_node_status()
             if "synced" in status:
                 status = f'```' \
+                         f'Balance: {faucet_balance}\n' \
                          f'Peers:   {status["peers"]}\n' \
                          f'Synced:  {status["synced"]}\n' \
                          f'Layers:  {status["currentLayer"]}\\{status["syncedLayer"]}\n```'
