@@ -45,10 +45,16 @@ async def on_message(message):
         return
 
     if message.content.startswith('$help') and message.channel.name in LISTENING_CHANNELS:
-        help_msg = f'`$faucet_status` - display info about faucet node status\n' \
-                   f'`$tx_info <transaction_id>` - display information about specific transaction\n' \
-                   f'Coins request format example:\n' \
-                   f'`0xafed9a1c17ca7eaa7a6795dbc7bee1b1d992c7ba`'
+        help_msg = f'**List of available commands:** \n' \
+                   f'1. Request coins through the tap - send your address\n' \
+                   f'**You can request coins no more than once every three hours* \n' \
+                   f'Example:\n' \
+                   f'`0xafed9a1c17ca7eaa7a6795dbc7bee1b1d992c7ba`\n\n' \
+                   f'2. `$faucet_status` - displays the current status of the node where faucet is running\n\n' \
+                   f'3. `$tx_info` - show transaction information for a specific transaction ID' \
+                   f' (sender, receiver, fee, amount, status)\n' \
+                   f'Example:\n' \
+                   f'`$tx_info f3282db1dd705bf7893b8835efaa0649647c69c5a560250347bfd4a300af4912`'
         await message.channel.send(help_msg)
 
     # Show node synchronization settings
