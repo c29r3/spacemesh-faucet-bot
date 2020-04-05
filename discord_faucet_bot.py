@@ -26,6 +26,7 @@ FAUCET_AMOUNT = int(cfg["faucet"]["amount_to_send"])
 FAUCET_FEE = int(cfg["faucet"]["fee"])
 REQUEST_COLDOWN = int(cfg["faucet"]["request_coldown_sec"])
 APPROVE_EMOJI = "💸"
+REJECT_EMOJI = "🚫"
 ACTIVE_REQUESTS = {}
 decimal = 1e12
 client = discord.Client()
@@ -115,7 +116,7 @@ async def on_message(message):
             print(ACTIVE_REQUESTS)
 
             faucet_balance = int(spacemesh_api.get_balance(ADDRESS))
-            if faucet_balance > (FAUCET_AMOUNT + FAUCET_FEE) * 10:
+            if faucet_balance > (FAUCET_AMOUNT + FAUCET_FEE):
                 transaction = spacemesh_api.send_transaction(frm=ADDRESS, to=requester_address, amount=FAUCET_AMOUNT,
                                                              gas_price=FAUCET_FEE, private_key=PRIVATE_KEY)
                 logger.info(f'Transaction result:\n{transaction}')
@@ -124,5 +125,11 @@ async def on_message(message):
                     await message.channel.send(f'{requester.mention}, Transaction has been sent. '
                                                f'Check TX status: `$tx_info {str(transaction["id"])}`')
 
+            elif faucet_balance < (FAUCET_AMOUNT + FAUCET_FEE):
+                logger.error(f'Insufficient funds: {faucet_balance}')
+                await message.add_reaction(emoji=REJECT_EMOJI)
+                await message.channel.send(f'@yaelh#5158,\n'
+                                           f'Insufficient funds: {faucet_balance}. '
+                                           f'It is necessary to replenish the faucet address: `0xafed9a1c17ca7eaa7a6795dbc7bee1b1d992c7ba`')
 
 client.run(TOKEN)
