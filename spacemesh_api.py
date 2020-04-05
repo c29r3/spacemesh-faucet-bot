@@ -76,8 +76,7 @@ def post_send(url: str, data: str):
 
     except Exception as err:
         print(f'{url}\n'
-              f'Error: {err}\n'
-              f'Data: {req.content}')
+              f'Error: {err}\n')
 
 
 def get_nonce(addr: str):
