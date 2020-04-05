@@ -65,7 +65,7 @@ async def on_message(message):
             status = spacemesh_api.get_node_status()
             if "synced" in status:
                 status = f'```' \
-                         f'Balance: {faucet_balance}\n' \
+                         f'Balance: {int(faucet_balance) / decimal} SMH\n' \
                          f'Peers:   {status["peers"]}\n' \
                          f'Synced:  {status["synced"]}\n' \
                          f'Layers:  {status["currentLayer"]}\\{status["syncedLayer"]}\n```'
