@@ -4,7 +4,7 @@ address:     "0x0000000000000000000000000000000000000000"
 
 faucet:
   discord_bot_token:          "YOUR_BOT_TOKEN"
-  discord_listening_channel:  ["general", "tap"]
+  discord_listening_channel:  ["🏦tap"]
   amount_to_send:             99999
   fee:                        50
   request_coldown_sec:        10800
