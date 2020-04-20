@@ -1,7 +1,9 @@
-import requests
+import aiohttp
+import asyncio
 import yaml
 import json
 import time
+import datetime
 import xdrlib
 from pure25519.eddsa import H, Hint
 from pure25519.basic import (bytes_to_clamped_scalar, bytes_to_element, bytes_to_scalar, scalar_to_bytes, Base, L)
@@ -12,6 +14,8 @@ with open("config.yaml", 'r') as config:
     cfg = yaml.load(config, Loader=yaml.FullLoader)
 
 rpc_url = f'http://{cfg["rpc"]["ip"]}:{cfg["rpc"]["port"]}/v1/'
+confirm_timeout_min = cfg["faucet"]["confirmation_timeout_min"]
+confirm_check_period_sec = cfg["faucet"]["check_period_sec"]
 
 
 class TxGenerator:
@@ -50,37 +54,40 @@ def signature2(m, sk):
     return R_bytes + scalar_to_bytes(S)
 
 
-def send_transaction(frm, to, private_key, amount=0, gas_price=10, gas_limit=20, nonce=None):
-    gas_limit = gas_price + 1 if not gas_limit else gas_limit
-    if len(private_key) == 102: private_key = private_key[:64]
+async def send_transaction(session, frm, to, private_key, amount=0, gas_price=10, gas_limit=20, nonce=None):
+    try:
+        gas_limit = gas_price + 1 if not gas_limit else gas_limit
+        if len(private_key) == 102:
+            private_key = private_key[:64]
 
-    tx_gen = TxGenerator(pub=frm.replace("0x", ""), pri=private_key)
-    nonce = int(get_nonce(frm))
-    if amount < int(get_balance(frm)) - gas_limit:
-        Exception(f'Insufficient funds: {amount}')
+        tx_gen = TxGenerator(pub=frm.replace("0x", ""), pri=private_key)
+        nonce = int(await get_nonce(session, frm))
+        if amount < int(await get_balance(session, frm)) - gas_limit:
+            Exception(f'Insufficient funds: {amount}')
 
-    tx_bytes = tx_gen.generate(to.replace("0x", ""), nonce, gas_limit, gas_price, amount)
-    tx_field = '{"tx":TX_BYTES}'.replace("TX_BYTES", str(list(tx_bytes)))
-    tx_result = post_send(rpc_url + "submittransaction", tx_field)
-    return tx_result
+        tx_bytes = tx_gen.generate(to.replace("0x", ""), nonce, gas_limit, gas_price, amount)
+        tx_field = '{"tx":TX_BYTES}'.replace("TX_BYTES", str(list(tx_bytes)))
+        tx_result = await post_send(url=rpc_url + "submittransaction", data=tx_field, session=session)
+        return tx_result
+
+    except Exception as sendErr:
+        print(sendErr)
 
 
-def post_send(url: str, data: str):
+async def post_send(session, url, data):
     headers = {"Content-Type": "application/json"}
     try:
-        req = requests.post(url=url, data=data, headers=headers)
-        if "submittransaction" in url:
-            print(req.json())
-        if req.status_code == 200 and req.json() is not None:
-            return req.json()
+        async with session.post(url=url, data=data, headers=headers) as resp:
+            assert resp.status == 200
+            return await resp.json()
 
     except Exception as err:
-        print(f'{url}\n'
-              f'Error: {err}\n')
+        print(await resp.text())
+        print(f'{url}\nError: {err}\n')
 
 
-def get_nonce(addr: str):
-    d = post_send(rpc_url+"nonce", '{"address": "ADDR"}'.replace("ADDR", addr))
+async def get_nonce(session, addr: str):
+    d = await post_send(session, rpc_url+"nonce", '{"address": "ADDR"}'.replace("ADDR", addr))
     try:
         return d["value"]
 
@@ -88,8 +95,8 @@ def get_nonce(addr: str):
         print(f"Uninitialized address {addr}")
 
 
-def get_balance(addr: str):
-    d = post_send(rpc_url+"balance", '{"address": "ADDR"}'.replace("ADDR", addr))
+async def get_balance(session, addr: str):
+    d = await post_send(session, rpc_url+"balance", '{"address": "ADDR"}'.replace("ADDR", addr))
     try:
         return d["value"]
 
@@ -97,26 +104,42 @@ def get_balance(addr: str):
         print(f"Uninitialized address {addr}")
 
 
-def get_node_status():
-    return post_send(rpc_url+"nodestatus", '')
+async def get_node_status(session):
+    return await post_send(session, rpc_url+"nodestatus", '')
 
 
-def tx_subscription(tx_id: str):
-    # Not implemented yet
-    pass
+async def tx_subscription(session, tx_id: str):
+    transaction_coldown = confirm_timeout_min * 60
+    trans_time = time.time()
+
+    while True:
+        resp = await get_transaction_info(session, trans_id_hex=tx_id)
+        if time.time() > trans_time + transaction_coldown:
+            print(f"Transaction was not confirmed within {confirm_timeout_min} minutes")
+            return "timeout"
+
+        elif "transaction not found" in str(resp):
+            print(f"Transaction was removed from mem pool {tx_id}")
+            return "removed"
+
+        elif "status" in str(resp):
+            if resp["status"] == "CONFIRMED":
+                confirm_time = str(datetime.timedelta(seconds=time.time() - trans_time))
+                print(f"Transaction confirmation took {confirm_time}")
+                return confirm_time
+        await asyncio.sleep(confirm_check_period_sec)
 
 
-def get_transactions_ids(addr: str):
-    d = post_send(rpc_url+"accounttxs", '{ "account": { "address": "ADDR"} }'.replace("ADDR", addr))
+async def get_transactions_ids(session, addr: str):
+    d = await post_send(session, rpc_url+"accounttxs", '{ "account": { "address": "ADDR"} }'.replace("ADDR", addr))
     print(d)
     return d
 
 
-def get_transaction_info(trans_id_hex: str):
+async def get_transaction_info(session, trans_id_hex: str):
     tx_id_bytes_array = list(bytearray.fromhex(trans_id_hex.replace("0x", "")))
-    d = '{"id":TX_ID}'.replace("TX_ID", str(tx_id_bytes_array))
-    print(d)
-    resp = post_send(rpc_url + "gettransaction", d)
+    data = '{"id":TX_ID}'.replace("TX_ID", str(tx_id_bytes_array))
+    resp = await post_send(session, data=data, url=rpc_url + "gettransaction")
     return resp
 
 
@@ -124,9 +147,9 @@ def addr_from_pub(pub: str) -> str:
     return pub[24:]
 
 
-def dump_all_transactions(address: str, dump_to_file: bool = True):
-    balance = get_balance(address)
-    transactions_ids = get_transactions_ids(address)
+async def dump_all_transactions(session, address: str, dump_to_file: bool = True):
+    balance = await get_balance(session, address)
+    transactions_ids = await get_transactions_ids(session, address)
     unique_transactions_hashes = list(set(transactions_ids["txs"]))
     print(unique_transactions_hashes)
     transactions_len = len(unique_transactions_hashes)
@@ -138,7 +161,7 @@ def dump_all_transactions(address: str, dump_to_file: bool = True):
                              "transactions:":      []}
 
     for i, t in enumerate(unique_transactions_hashes):
-        trans_info = get_transaction_info(t)
+        trans_info = await get_transaction_info(session, t)
         print(i)
         all_transactions_json["transactions:"].append(trans_info)
         try:
@@ -159,6 +182,4 @@ def dump_all_transactions(address: str, dump_to_file: bool = True):
     with open(f"{address}_transactions.json", "w") as f:
         json.dump(all_transactions_json, f, indent=2, sort_keys=False)
     return all_transactions_json
-
-
 
