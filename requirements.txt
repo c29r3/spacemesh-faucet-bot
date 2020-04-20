@@ -1,3 +1,5 @@
 pure25519
-requests
 discord
+aiofiles
+aiohttp
+asyncio
