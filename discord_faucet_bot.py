@@ -1,3 +1,6 @@
+import asyncio
+import aiofiles as aiof
+import aiohttp
 import discord
 import spacemesh_api
 import yaml
@@ -25,11 +28,43 @@ LISTENING_CHANNELS = str(cfg["faucet"]["discord_listening_channel"])
 FAUCET_AMOUNT = int(cfg["faucet"]["amount_to_send"])
 FAUCET_FEE = int(cfg["faucet"]["fee"])
 REQUEST_COLDOWN = int(cfg["faucet"]["request_coldown_sec"])
+CONFIRM_TIMEOUT_MIN = int(cfg["faucet"]["confirmation_timeout_min"])
+USER_ID_NOTIFY = int(cfg["faucet"]["user_id_notify"])
 APPROVE_EMOJI = "💸"
 REJECT_EMOJI = "🚫"
+CONFIRMED_EMOJI = "✅"
 ACTIVE_REQUESTS = {}
 decimal = 1e12
 client = discord.Client()
+
+help_msg = f"""**List of available commands:** 
+1. Request coins through the tap - send your address
+*You can request coins no more than once every three hours* 
+
+Example:
+`{ADDRESS}`
+
+Transaction status explanation:
+💸 - mean bot send transaction to your address, but the transaction has not yet been confirmed
+✅ - transaction was successfully confirmed
+🚫 - the transaction was not confirmed for some reason. You need to make another request
+*Bot track transaction status only for 15 minutes*
+*Average transaction confirmation time 10-13 minutes*
+
+2. `$faucet_status` - displays the current status of the node where faucet is running
+
+3. `$tx_info` - show transaction information for a specific transaction ID
+(sender, receiver, fee, amount, status)
+
+Example:
+`$tx_info f3282db1dd705bf7893b8835efaa0649647c69c5a560250347bfd4a300af4912`"""
+
+
+async def save_transaction_statistics(some_string: str):
+    # with open("transactions.csv", "a") as csv_file:
+    async with aiof.open("transactions.csv", "a") as csv_file:
+        await csv_file.write(f'{some_string}\n')
+        await csv_file.flush()
 
 
 @client.event
@@ -39,30 +74,22 @@ async def on_ready():
 
 @client.event
 async def on_message(message):
+    session = aiohttp.ClientSession()
     message_timestamp = time.time()
+    usr1 = client.get_user(id=USER_ID_NOTIFY)
 
     # Do not listen to your own messages
     if message.author == client.user:
         return
 
     if message.content.startswith('$help') and message.channel.name in LISTENING_CHANNELS:
-        help_msg = f'**List of available commands:** \n' \
-                   f'1. Request coins through the tap - send your address\n' \
-                   f'**You can request coins no more than once every three hours* \n' \
-                   f'Example:\n' \
-                   f'`0xafed9a1c17ca7eaa7a6795dbc7bee1b1d992c7ba`\n\n' \
-                   f'2. `$faucet_status` - displays the current status of the node where faucet is running\n\n' \
-                   f'3. `$tx_info` - show transaction information for a specific transaction ID' \
-                   f' (sender, receiver, fee, amount, status)\n' \
-                   f'Example:\n' \
-                   f'`$tx_info f3282db1dd705bf7893b8835efaa0649647c69c5a560250347bfd4a300af4912`'
         await message.channel.send(help_msg)
 
     # Show node synchronization settings
     if message.content.startswith('$faucet_status') and message.channel.name in LISTENING_CHANNELS:
         try:
-            faucet_balance = spacemesh_api.get_balance(ADDRESS)
-            status = spacemesh_api.get_node_status()
+            faucet_balance = await spacemesh_api.get_balance(session, ADDRESS)
+            status = await spacemesh_api.get_node_status(session)
             if "synced" in status:
                 status = f'```' \
                          f'Balance: {int(faucet_balance) / decimal} SMH\n' \
@@ -78,8 +105,7 @@ async def on_message(message):
         try:
             hash_id = str(message.content).replace("$tx_info", "").replace(" ", "")
             if len(hash_id) == 64:
-                tr_info = spacemesh_api.get_transaction_info(hash_id)
-                # See this - https://github.com/spacemeshos/go-spacemesh/issues/1908
+                tr_info = await spacemesh_api.get_transaction_info(session, hash_id)
                 if "amount" and "fee" in str(tr_info):
                     tr_info = f'```' \
                               f'From:       0x{str(tr_info["sender"]["address"])}\n' \
@@ -102,8 +128,9 @@ async def on_message(message):
         if requester.id in ACTIVE_REQUESTS:
             check_time = ACTIVE_REQUESTS[requester.id]["next_request"]
             if check_time > message_timestamp:
-                please_wait_text = f'{requester.mention}, You can request coins no more than once every 3 hours.\n' \
-                                   f'The next attempt is possible after {round((check_time - message_timestamp) / 60, 2)} minutes'
+                please_wait_text = f'{requester.mention}, You can request coins no more than once every 3 hours.' \
+                                   f'The next attempt is possible after ' \
+                                   f'{round((check_time - message_timestamp) / 60, 2)} minutes'
                 await channel.send(please_wait_text)
                 return
 
@@ -117,21 +144,44 @@ async def on_message(message):
                 "next_request": message_timestamp + REQUEST_COLDOWN}
             print(ACTIVE_REQUESTS)
 
-            faucet_balance = int(spacemesh_api.get_balance(ADDRESS))
+            faucet_balance = int(await spacemesh_api.get_balance(session, ADDRESS))
             if faucet_balance > (FAUCET_AMOUNT + FAUCET_FEE):
-                transaction = spacemesh_api.send_transaction(frm=ADDRESS, to=requester_address, amount=FAUCET_AMOUNT,
-                                                             gas_price=FAUCET_FEE, private_key=PRIVATE_KEY)
+                transaction = await spacemesh_api.send_transaction(session,
+                                                                   frm=ADDRESS,
+                                                                   to=requester_address,
+                                                                   amount=FAUCET_AMOUNT,
+                                                                   gas_price=FAUCET_FEE,
+                                                                   private_key=PRIVATE_KEY)
                 logger.info(f'Transaction result:\n{transaction}')
                 if transaction["value"] == "ok":
                     await message.add_reaction(emoji=APPROVE_EMOJI)
-                    await message.channel.send(f'{requester.mention}, Transaction has been sent. '
-                                               f'Check TX status: `$tx_info {str(transaction["id"])}`')
+                    confirm_time = await spacemesh_api.tx_subscription(session, transaction["id"])
+                    if confirm_time == "removed":
+                        await message.add_reaction(emoji=REJECT_EMOJI)
+                        await message.channel.send(f'{requester.mention}, {transaction["id"]} was fail to send. '
+                                                   f'You can do another request')
+                        # remove the restriction on the request for coins, since the transaction was not completed
+                        del ACTIVE_REQUESTS[requester.id]
+
+                    elif confirm_time != "timeout":
+                        await message.add_reaction(emoji=CONFIRMED_EMOJI)
+
+                    elif confirm_time == "timeout":
+                        await message.channel.send(f'{requester.mention}, Transaction confirmation took more than '
+                                                   f'{CONFIRM_TIMEOUT_MIN} minutes. '
+                                                   f'Check status manually: `$tx_info {str(transaction["id"])}`')
+                        await usr1.send(f'Transaction confirmation took more than {CONFIRM_TIMEOUT_MIN} minutes: '
+                                        f'{transaction["id"]}')
+
+                    # await message.channel.send(f'TX_ID: {transaction["id"]} | Confirmation time: {confirm_time}')
+                    await save_transaction_statistics(f'{transaction["id"]};{confirm_time}')
+                    await session.close()
 
             elif faucet_balance < (FAUCET_AMOUNT + FAUCET_FEE):
                 logger.error(f'Insufficient funds: {faucet_balance}')
                 await message.add_reaction(emoji=REJECT_EMOJI)
                 await message.channel.send(f'@yaelh#5158,\n'
                                            f'Insufficient funds: {faucet_balance}. '
-                                           f'It is necessary to replenish the faucet address: `0xafed9a1c17ca7eaa7a6795dbc7bee1b1d992c7ba`')
+                                           f'It is necessary to replenish the faucet address: `{ADDRESS}`')
 
 client.run(TOKEN)
