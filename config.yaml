@@ -1,0 +1,22 @@
+private_key: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+public_key:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+address:     "0x0000000000000000000000000000000000000000"
+
+faucet:
+  discord_bot_token:          "YOUR_BOT_TOKEN"
+  discord_listening_channel:  ["🏦tap", "tap"]
+  # 100000000000 = 0.1 SMH
+  amount_to_send:             100000000000
+  fee:                        50
+  # how often user can request tokens from faucet
+  request_coldown_sec:        10800
+  # how often bot will check transaction status
+  check_period_sec:           1
+  # how long bot will check transaction status
+  confirmation_timeout_min:   15
+  # user who will receive notifications about long transactions
+  user_id_notify:             555555555555555555
+
+rpc:
+  ip:   "127.0.0.1"
+  port: "9090"
