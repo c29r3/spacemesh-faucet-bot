@@ -41,9 +41,6 @@ help_msg = f"""**List of available commands:**
 1. Request coins through the tap - send your address
 *You can request coins no more than once every three hours* 
 
-Example:
-`{ADDRESS}`
-
 Transaction status explanation:
 💸 - mean bot send transaction to your address, but the transaction has not yet been confirmed
 ✅ - transaction was successfully confirmed
@@ -53,11 +50,13 @@ Transaction status explanation:
 
 2. `$faucet_status` - displays the current status of the node where faucet is running
 
-3. `$tx_info` - show transaction information for a specific transaction ID
+3. `$tx_info <TX_ID>` - show transaction information for a specific transaction ID
 (sender, receiver, fee, amount, status)
 
-Example:
-`$tx_info f3282db1dd705bf7893b8835efaa0649647c69c5a560250347bfd4a300af4912`"""
+4. `$balance <ADDRESS>` - show address balance
+
+5. `$dump_txs <ADDRESS>` - get json file with all transactions
+*Direct message to bot*"""
 
 
 async def save_transaction_statistics(some_string: str):
@@ -76,17 +75,34 @@ async def on_ready():
 async def on_message(message):
     session = aiohttp.ClientSession()
     message_timestamp = time.time()
+    requester = message.author
     usr1 = client.get_user(id=USER_ID_NOTIFY)
 
     # Do not listen to your own messages
     if message.author == client.user:
         return
 
-    if message.content.startswith('$help') and message.channel.name in LISTENING_CHANNELS:
+    if message.content.startswith('$balance'):
+        address = str(message.content).replace("$balance", "").replace(" ", "")
+        if str(address[:2]) == "0x" and len(address) == 42:
+            balance = await spacemesh_api.get_balance(session, address)
+            if "error" in str(balance).lower():
+                await message.channel.send(f'{message.author.mention} {str(balance)}')
+            else:
+                await message.channel.send(f'{message.author.mention}, {int(balance) / decimal} SMH')
+
+    if message.content.startswith('$help'):
         await message.channel.send(help_msg)
 
+    if message.content.startswith('$dump_txs'):
+        address = str(message.content).replace("$dump_txs", "").replace(" ", "")
+        if str(address[:2]) == "0x" and len(address) == 42:
+            await spacemesh_api.dump_all_transactions(session, address)
+            await requester.send(file=discord.File(f"{address[:15]}.json"))
+
     # Show node synchronization settings
-    if message.content.startswith('$faucet_status') and message.channel.name in LISTENING_CHANNELS:
+    if message.content.startswith('$faucet_status'):
+        print(requester.name, "status request")
         try:
             faucet_balance = await spacemesh_api.get_balance(session, ADDRESS)
             status = await spacemesh_api.get_node_status(session)
@@ -122,7 +138,6 @@ async def on_message(message):
 
     if str(message.content[:2]) == "0x" and len(message.content) == 42 and message.channel.name in LISTENING_CHANNELS:
         channel = message.channel
-        requester = message.author
         requester_address = str(message.content)
 
         if requester.id in ACTIVE_REQUESTS:
