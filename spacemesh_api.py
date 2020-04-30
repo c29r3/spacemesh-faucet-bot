@@ -78,8 +78,11 @@ async def post_send(session, url, data):
     headers = {"Content-Type": "application/json"}
     try:
         async with session.post(url=url, data=data, headers=headers) as resp:
-            assert resp.status == 200
-            return await resp.json()
+            data = await resp.text()
+            if type(data) is None or "error" in data:
+                return await resp.text()
+            else:
+                return await resp.json()
 
     except Exception as err:
         print(await resp.text())
@@ -92,7 +95,7 @@ async def get_nonce(session, addr: str):
         return d["value"]
 
     except Exception:
-        print(f"Uninitialized address {addr}")
+        return f"ERROR: Uninitialized address {addr}"
 
 
 async def get_balance(session, addr: str):
@@ -101,7 +104,7 @@ async def get_balance(session, addr: str):
         return d["value"]
 
     except Exception:
-        print(f"Uninitialized address {addr}")
+        return f"ERROR: Uninitialized address {addr}"
 
 
 async def get_node_status(session):
@@ -151,7 +154,6 @@ async def dump_all_transactions(session, address: str, dump_to_file: bool = True
     balance = await get_balance(session, address)
     transactions_ids = await get_transactions_ids(session, address)
     unique_transactions_hashes = list(set(transactions_ids["txs"]))
-    print(unique_transactions_hashes)
     transactions_len = len(unique_transactions_hashes)
     all_transactions_json = {"address": address,
                              "balance": balance,
@@ -179,7 +181,8 @@ async def dump_all_transactions(session, address: str, dump_to_file: bool = True
         except Exception as err:
             print(err)
 
-    with open(f"{address}_transactions.json", "w") as f:
+    with open(f"{address[:15]}.json", "w") as f:
         json.dump(all_transactions_json, f, indent=2, sort_keys=False)
-    return all_transactions_json
+    await session.close()
+
 
