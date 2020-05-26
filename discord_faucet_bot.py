@@ -89,7 +89,7 @@ async def on_message(message):
             if "error" in str(balance).lower():
                 await message.channel.send(f'{message.author.mention} {str(balance)}')
             else:
-                await message.channel.send(f'{message.author.mention}, {int(balance) / decimal} SMH')
+                await message.channel.send(f'{message.author.mention}, {int(balance) / decimal:.2f} SMH')
 
     if message.content.startswith('$help'):
         await message.channel.send(help_msg)
@@ -108,7 +108,7 @@ async def on_message(message):
             status = await spacemesh_api.get_node_status(session)
             if "synced" in status:
                 status = f'```' \
-                         f'Balance: {int(faucet_balance) / decimal} SMH\n' \
+                         f'Balance: {int(faucet_balance) / decimal:.2f} SMH\n' \
                          f'Peers:   {status["peers"]}\n' \
                          f'Synced:  {status["synced"]}\n' \
                          f'Layers:  {status["currentLayer"]}\\{status["syncedLayer"]}\n```'
