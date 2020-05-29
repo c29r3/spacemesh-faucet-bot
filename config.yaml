@@ -6,7 +6,7 @@ faucet:
   discord_bot_token:          "YOUR_BOT_TOKEN"
   discord_listening_channel:  ["🏦tap", "tap"]
   # 100000000000 = 0.1 SMH
-  amount_to_send:             100000000000
+  amount_to_send:             300
   fee:                        50
   # how often user can request tokens from faucet
   request_coldown_sec:        10800
