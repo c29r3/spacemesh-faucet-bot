@@ -106,7 +106,7 @@ async def on_message(message):
         try:
             faucet_balance = await spacemesh_api.get_balance(session, ADDRESS)
             status = await spacemesh_api.get_node_status(session)
-            if "synced" in status:
+            if "synced" in status and "ERROR" not in str(faucet_balance):
                 status = f'```' \
                          f'Balance: {int(faucet_balance) / decimal} SMH\n' \
                          f'Peers:   {status["peers"]}\n' \
