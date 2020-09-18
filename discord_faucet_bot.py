@@ -130,7 +130,7 @@ async def on_message(message):
     if message.content.startswith('$tx_info') and message.channel.name in LISTENING_CHANNELS:
         try:
             hash_id = str(message.content).replace("$tx_info", "").replace(" ", "")
-            if len(hash_id) == 64:
+            if len(hash_id) == 64 or len(hash_id) == 66:
                 tr_info = await spacemesh_api.get_transaction_info(session, hash_id)
                 if "amount" and "fee" in str(tr_info):
                     tr_info = f'```' \
