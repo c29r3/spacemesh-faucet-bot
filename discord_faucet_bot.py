@@ -50,12 +50,14 @@ Transaction status explanation:
 
 2. `$faucet_status` - displays the current status of the node where faucet is running
 
-3. `$tx_info <TX_ID>` - show transaction information for a specific transaction ID
+3. `$faucet_address` or `$tap_address` - show tap address
+
+4. `$tx_info <TX_ID>` - show transaction information for a specific transaction ID
 (sender, receiver, fee, amount, status)
 
-4. `$balance <ADDRESS>` - show address balance
+5. `$balance <ADDRESS>` - show address balance
 
-5. `$dump_txs <ADDRESS>` - get json file with all transactions
+6. `$dump_txs <ADDRESS>` - get json file with all transactions
 *Direct message to bot*"""
 
 
@@ -105,6 +107,8 @@ async def on_message(message):
         print(requester.name, "status request")
         try:
             faucet_balance = await spacemesh_api.get_balance(session, ADDRESS)
+            if type(faucet_balance) == str:
+                faucet_balance = 0
             status = await spacemesh_api.get_node_status(session)
             if "synced" in status and "ERROR" not in str(faucet_balance):
                 status = f'```' \
@@ -116,6 +120,12 @@ async def on_message(message):
 
         except Exception as statusErr:
             print(statusErr)
+
+    if message.content.startswith('$faucet_address') or  message.content.startswith('$tap_address') and message.channel.name in LISTENING_CHANNELS:
+        try:
+            await message.channel.send(f"Faucet address is: {ADDRESS}")
+        except:
+            print("Can't send message $faucet_address")
 
     if message.content.startswith('$tx_info') and message.channel.name in LISTENING_CHANNELS:
         try:
