@@ -107,8 +107,6 @@ async def on_message(message):
         print(requester.name, "status request")
         try:
             faucet_balance = await spacemesh_api.get_balance(session, ADDRESS)
-            if type(faucet_balance) == str:
-                faucet_balance = 0
             status = await spacemesh_api.get_node_status(session)
             if "synced" in status and "ERROR" not in str(faucet_balance):
                 status = f'```' \
