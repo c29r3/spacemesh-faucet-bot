@@ -85,8 +85,8 @@ async def on_message(message):
         return
 
     if message.content.startswith('$balance'):
-        address = str(message.content).replace("$balance", "").replace(" ", "")
-        if str(address[:2]).lower() == "0x" and len(address) == 42:
+        address = str(message.content).replace("$balance", "").replace(" ", "").lower()
+        if str(address[:2]) == "0x" and len(address) == 42:
             balance = await spacemesh_api.get_balance(session, address)
             if "error" in str(balance).lower():
                 await message.channel.send(f'{message.author.mention} {str(balance)}')
@@ -97,9 +97,9 @@ async def on_message(message):
         await message.channel.send(help_msg)
 
     if message.content.startswith('$dump_txs'):
-        address = str(message.content).replace("$dump_txs", "").replace(" ", "")
+        address = str(message.content).replace("$dump_txs", "").replace(" ", "").lower()
         if str(address[:2]).lower() == "0x" and len(address) == 42:
-            await spacemesh_api.dump_all_transactions(session, address)
+            await spacemesh_api.dump_all_transactions(session, address.lower())
             await requester.send(file=discord.File(f"{address[:15]}.json"))
 
     # Show node synchronization settings
@@ -119,7 +119,7 @@ async def on_message(message):
         except Exception as statusErr:
             print(statusErr)
 
-    if message.content.startswith('$faucet_address') or  message.content.startswith('$tap_address') and message.channel.name in LISTENING_CHANNELS:
+    if message.content.startswith('$faucet_address') or message.content.startswith('$tap_address') and message.channel.name in LISTENING_CHANNELS:
         try:
             await message.channel.send(f"Faucet address is: {ADDRESS}")
         except:
@@ -146,7 +146,7 @@ async def on_message(message):
 
     if str(message.content[:2]).lower() == "0x" and len(message.content) == 42 and message.channel.name in LISTENING_CHANNELS:
         channel = message.channel
-        requester_address = str(message.content)
+        requester_address = str(message.content).lower()
 
         if requester.id in ACTIVE_REQUESTS:
             check_time = ACTIVE_REQUESTS[requester.id]["next_request"]
