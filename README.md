@@ -9,3 +9,5 @@ spacemesh-faucet-bot
 1. Replace the values in the config with yours  
 2. Start bot
 `python3 discord_faucet_bot.py`
+
+![alt text](https://github.com/c29r3/spacemesh-faucet-bot/blob/master/faucet-help.png?raw=true)
