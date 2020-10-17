@@ -86,7 +86,7 @@ async def on_message(message):
 
     if message.content.startswith('$balance'):
         address = str(message.content).replace("$balance", "").replace(" ", "")
-        if str(address[:2]) == "0x" and len(address) == 42:
+        if str(address[:2]).lower() == "0x" and len(address) == 42:
             balance = await spacemesh_api.get_balance(session, address)
             if "error" in str(balance).lower():
                 await message.channel.send(f'{message.author.mention} {str(balance)}')
@@ -98,7 +98,7 @@ async def on_message(message):
 
     if message.content.startswith('$dump_txs'):
         address = str(message.content).replace("$dump_txs", "").replace(" ", "")
-        if str(address[:2]) == "0x" and len(address) == 42:
+        if str(address[:2]).lower() == "0x" and len(address) == 42:
             await spacemesh_api.dump_all_transactions(session, address)
             await requester.send(file=discord.File(f"{address[:15]}.json"))
 
@@ -144,7 +144,7 @@ async def on_message(message):
         except Exception as tx_infoErr:
             print(tx_infoErr)
 
-    if str(message.content[:2]) == "0x" and len(message.content) == 42 and message.channel.name in LISTENING_CHANNELS:
+    if str(message.content[:2]).lower() == "0x" and len(message.content) == 42 and message.channel.name in LISTENING_CHANNELS:
         channel = message.channel
         requester_address = str(message.content)
 
